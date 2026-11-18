@@ -6,6 +6,7 @@ use App\Exceptions\AiServiceException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Http\Client\RequestException;
 
 class GeminiClient implements LlmClient
 {
@@ -25,11 +26,22 @@ class GeminiClient implements LlmClient
 
         try {
             $response = Http::withHeaders(['x-goog-api-key' => $key])
-                ->timeout(30)
+                ->withOptions(['force_ip_resolve' => 'v4'])
+                ->timeout(60)
+                ->retry(
+                    2,
+                    1500,
+                    fn ($e) => $e instanceof RequestException
+                        && in_array($e->response->status(), [429, 503], true),
+                    throw: false,
+                )
                 ->post($url, [
                     'systemInstruction' => ['parts' => [['text' => $systemPrompt]]],
                     'contents' => [['role' => 'user', 'parts' => [['text' => $userPrompt]]]],
-                    'generationConfig' => ['temperature' => 0.2],
+                    'generationConfig' => [
+                        'temperature' => 0.2,
+                        'thinkingConfig' => ['thinkingLevel' => 'low'],
+                    ],
                 ]);
         } catch (ConnectionException $e) {
             Log::error('Gemini connection failed', ['error' => $e->getMessage()]);
