@@ -26,7 +26,14 @@ class CustomerFactory extends Factory
                 'Technology', 'Healthcare', 'Finance', 'Retail', 'Manufacturing', 'Education',
             ]),
             'status' => fake()->randomElement(\App\Enums\CustomerStatus::cases()),
-            'notes' => fake()->paragraph(),
+            'notes' => fake()->randomElement([
+                'Decision maker is the CFO. Prefers email over calls. Very price sensitive.',
+                'Existing customer for two years. Interested in expanding to more users.',
+                'Contract renewal is coming up. Mentioned a competitor is offering a discount.',
+                'Slow to respond. Needs a follow-up call every two weeks.',
+                'Strong technical team. Wants an on-premise option, which we do not offer.',
+                'Referred by another client. Budget approved for this quarter.',
+            ]),
         ];
     }
 }
