@@ -180,6 +180,9 @@ class DealTools
             'value' => $d->value,
             'stage' => $d->stage->value,
             'expected_close_date' => $d->expected_close_date?->toDateString(),
+            'is_overdue' => $d->stage->isOpen()
+                && $d->expected_close_date !== null
+                && $d->expected_close_date->lt(today()),
         ];
     }
 }
