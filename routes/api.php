@@ -4,6 +4,8 @@ use App\Http\Controllers\Api\AuthController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\DealController;
+use App\Http\Controllers\Api\CustomerSummaryController;
+
 
 //5 login attempts per minute
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
@@ -14,4 +16,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::apiResource('customers', CustomerController::class);
     Route::apiResource('deals', DealController::class);
+
+    Route::post('customers/{customer}/summary', CustomerSummaryController::class)
+        ->middleware('throttle:10,1');
 });
