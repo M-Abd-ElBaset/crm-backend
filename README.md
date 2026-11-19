@@ -1,58 +1,80 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# CRM Assistant: Backend (Laravel)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+REST API for a simplified CRM with three AI features: customer summaries, a sales report summary, and a deal Q&A assistant. The AI never produces numbers: figures come from PostgreSQL, and the model only writes text around them.
 
-## About Laravel
+Frontend repository: `<link to your frontend repo>`
+Technical documentation (architecture, ERD, security, testing): [docs/TECHNICAL.md](docs/TECHNICAL.md)
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Requirements
+- PHP 8.2+ with the `pdo_pgsql` extension enabled
+- Composer
+- PostgreSQL 14+
+- A Google Gemini API key (free tier, from aistudio.google.com)
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
-
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
+## Setup
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+composer install
+cp .env.example .env
+php artisan key:generate
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Create the databases (the second one is used only by the automated tests):
+```sql
+CREATE DATABASE crm_ai;
+CREATE DATABASE crm_ai_test;
+```
 
-## Contributing
+Edit `.env`:
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+| Variable | Purpose | Example |
+|---|---|---|
+| `DB_CONNECTION` | Must be `pgsql` | `pgsql` |
+| `DB_HOST`, `DB_PORT` | PostgreSQL server | `127.0.0.1`, `5432` |
+| `DB_DATABASE` | Application database | `crm_ai` |
+| `DB_USERNAME`, `DB_PASSWORD` | Database credentials | |
+| `FRONTEND_URL` | Allowed CORS origin | `http://localhost:3000` |
+| `GEMINI_API_KEY` | AI provider key (never commit it) | |
+| `GEMINI_MODEL` | Gemini model ID | `gemini-3.5-flash` |
 
-## Code of Conduct
+Create the tables and seed demo data:
+```bash
+php artisan migrate --seed
+```
+The seeder creates a demo user (`demo@example.com` / `password`), 12 customers, and 1 to 4 deals per customer.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## Run
+```bash
+php artisan serve
+```
+The API is available at `http://localhost:8000/api`. Start the frontend as described in its README.
 
-## Security Vulnerabilities
+## AI provider configuration
+- The provider is Google Gemini, called through the REST API from `App\Services\Ai\GeminiClient`.
+- Set `GEMINI_API_KEY` and `GEMINI_MODEL` in `.env`. Model IDs change over time: pick a current Flash model in Google AI Studio.
+- The free tier can return `429` (rate limited) or `503` (overloaded). The client retries once and then returns a clean error message to the user.
+- To use another provider, implement `App\Services\Ai\LlmClient` and change the binding in `AppServiceProvider`. No other code changes.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## Tests
+```bash
+php artisan test
+```
+Tests use the `crm_ai_test` database and a fake AI provider. No test calls the real Gemini API.
 
-## License
+## API overview
+All routes except `POST /api/login` need the header `Authorization: Bearer <token>`.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/login` | Returns a token (5 requests per minute) |
+| POST | `/api/logout` | Revokes the current token |
+| GET | `/api/me` | Current user |
+| GET, POST | `/api/customers` | List (`?search=&page=`) and create |
+| GET, PUT, DELETE | `/api/customers/{id}` | Show (with deals), update, delete |
+| GET, POST | `/api/deals` | List (`?stage=&page=`) and create |
+| GET, PUT, DELETE | `/api/deals/{id}` | Show (with customer), update, delete |
+| POST | `/api/customers/{id}/summary` | AI customer summary |
+| GET | `/api/reports/sales` | Sales statistics (database only) |
+| POST | `/api/reports/sales/summary` | Statistics plus AI narrative |
+| POST | `/api/assistant/deals/ask` | Deal Q&A, body: `{"question": "..."}` |
+
+AI endpoints are limited to 10 requests per minute per user.
